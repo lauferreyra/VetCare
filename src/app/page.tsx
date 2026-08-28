@@ -1,4 +1,5 @@
 import Header from "@/components/layout/Header";
+import Hero from "@/components/sections/Hero";
 
 export default function Home() {
   return (
@@ -6,7 +7,7 @@ export default function Home() {
       <Header />
 
       <main>
-        <h1 className="p-8 text-4xl font-bold">VetCare</h1>
+        <Hero />
       </main>
     </>
   );
