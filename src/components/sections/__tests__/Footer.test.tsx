@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-
+import { describe, expect, it } from "vitest";
 import Footer from "@/components/layout/Footer";
 import { navigation } from "@/constants/navigation";
 

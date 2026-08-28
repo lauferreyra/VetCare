@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-
+import { describe, expect, it } from "vitest";
 import MobileMenu from "@/components/layout/MobileMenu";
 
 describe("MobileMenu", () => {
