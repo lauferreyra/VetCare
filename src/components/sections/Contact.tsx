@@ -1,4 +1,5 @@
 "use client";
+
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,6 +13,8 @@ import {
 } from "@/schemas/contactSchema";
 
 export default function Contact() {
+  const [isSuccess, setIsSuccess] = useState(false);
+
   const {
     register,
     handleSubmit,
@@ -20,16 +23,19 @@ export default function Contact() {
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
   });
-const [isSuccess, setIsSuccess] = useState(false);
- const onSubmit = async (data: ContactFormData) => {
-  console.log(data);
 
-  setIsSuccess(true);
-  reset();
-};
+  const onSubmit = async (data: ContactFormData) => {
+    console.log(data);
+
+    setIsSuccess(true);
+    reset();
+  };
 
   return (
-    <section id="contact" className="scroll-mt-16 bg-slate-50 py-20 lg:py-24">
+    <section
+      id="contact"
+      className="scroll-mt-16 bg-slate-50 py-20 lg:py-24"
+    >
       <Container>
         <SectionTitle
           eyebrow="Contacto"
@@ -39,6 +45,7 @@ const [isSuccess, setIsSuccess] = useState(false);
 
         <div className="mx-auto mt-12 max-w-3xl">
           <form
+            noValidate
             onSubmit={handleSubmit(onSubmit)}
             className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
           >
@@ -56,6 +63,7 @@ const [isSuccess, setIsSuccess] = useState(false);
                   type="text"
                   placeholder="Tu nombre"
                   {...register("name")}
+                  aria-invalid={!!errors.name}
                   className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                 />
 
@@ -79,6 +87,7 @@ const [isSuccess, setIsSuccess] = useState(false);
                   type="email"
                   placeholder="nombre@email.com"
                   {...register("email")}
+                  aria-invalid={!!errors.email}
                   className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                 />
 
@@ -104,6 +113,7 @@ const [isSuccess, setIsSuccess] = useState(false);
                   type="tel"
                   placeholder="11 1234 5678"
                   {...register("phone")}
+                  aria-invalid={!!errors.phone}
                   className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                 />
 
@@ -125,6 +135,7 @@ const [isSuccess, setIsSuccess] = useState(false);
                 <select
                   id="subject"
                   {...register("subject")}
+                  aria-invalid={!!errors.subject}
                   className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                 >
                   <option value="">Seleccionar</option>
@@ -155,6 +166,7 @@ const [isSuccess, setIsSuccess] = useState(false);
                 rows={5}
                 placeholder="Contanos brevemente en qué podemos ayudarte"
                 {...register("message")}
+                aria-invalid={!!errors.message}
                 className="w-full resize-none rounded-lg border border-slate-300 px-4 py-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
               />
 
@@ -172,11 +184,15 @@ const [isSuccess, setIsSuccess] = useState(false);
             >
               {isSubmitting ? "Enviando..." : "Enviar consulta"}
             </button>
+
             {isSuccess && (
-                <p className="mt-4 text-sm font-medium text-emerald-600">
-                    Consulta enviada correctamente.
-                </p>
-                )}
+              <p
+                role="status"
+                className="mt-4 text-sm font-medium text-emerald-600"
+              >
+                Consulta enviada correctamente.
+              </p>
+            )}
           </form>
         </div>
       </Container>
