@@ -6,7 +6,7 @@ import { navigation } from "@/constants/navigation";
 
 export default function Header() {
   return (
-    <header className="relative border-b border-slate-200 bg-white">
+    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
       <Container>
         <div className="flex h-16 items-center justify-between">
           <Link href="/" className="text-2xl font-bold text-teal-700">

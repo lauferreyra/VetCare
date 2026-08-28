@@ -6,7 +6,7 @@ import { services } from "@/constants/services";
 
 export default function Services() {
   return (
-    <section id="services" className="bg-white py-20 lg:py-24">
+    <section id="services" className="scroll-mt-16 bg-white py-20 lg:py-24">
       <Container>
         <SectionTitle
           eyebrow="Servicios"

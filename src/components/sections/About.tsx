@@ -4,7 +4,7 @@ import Container from "@/components/ui/Container";
 
 export default function About() {
   return (
-    <section id="about" className="bg-slate-50 py-20 lg:py-24">
+    <section id="about" className="scroll-mt-16 bg-slate-50 py-20 lg:py-24">
       <Container>
         <div className="flex flex-col items-center gap-12 md:flex-row">
           <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl md:w-1/2">

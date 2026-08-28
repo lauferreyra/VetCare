@@ -1,5 +1,5 @@
 "use client";
-
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -20,15 +20,16 @@ export default function Contact() {
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
   });
+const [isSuccess, setIsSuccess] = useState(false);
+ const onSubmit = async (data: ContactFormData) => {
+  console.log(data);
 
-  const onSubmit = (data: ContactFormData) => {
-    console.log(data);
-
-    reset();
-  };
+  setIsSuccess(true);
+  reset();
+};
 
   return (
-    <section id="contact" className="bg-slate-50 py-20 lg:py-24">
+    <section id="contact" className="scroll-mt-16 bg-slate-50 py-20 lg:py-24">
       <Container>
         <SectionTitle
           eyebrow="Contacto"
@@ -171,6 +172,11 @@ export default function Contact() {
             >
               {isSubmitting ? "Enviando..." : "Enviar consulta"}
             </button>
+            {isSuccess && (
+                <p className="mt-4 text-sm font-medium text-emerald-600">
+                    Consulta enviada correctamente.
+                </p>
+                )}
           </form>
         </div>
       </Container>
