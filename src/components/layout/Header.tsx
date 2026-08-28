@@ -1,6 +1,8 @@
 import Link from "next/link";
+
 import Container from "@/components/ui/Container";
 import MobileMenu from "@/components/layout/MobileMenu";
+import { navigation } from "@/constants/navigation";
 
 export default function Header() {
   return (
@@ -12,26 +14,15 @@ export default function Header() {
           </Link>
 
           <nav className="hidden items-center gap-8 md:flex">
-            <Link
-              href="#services"
-              className="text-sm font-medium text-slate-600 transition-colors hover:text-teal-700"
-            >
-              Servicios
-            </Link>
-
-            <Link
-              href="#about"
-              className="text-sm font-medium text-slate-600 transition-colors hover:text-teal-700"
-            >
-              Nosotros
-            </Link>
-
-            <Link
-              href="#contact"
-              className="text-sm font-medium text-slate-600 transition-colors hover:text-teal-700"
-            >
-              Contacto
-            </Link>
+            {navigation.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="text-sm font-medium text-slate-600 transition-colors hover:text-teal-700"
+              >
+                {item.label}
+              </Link>
+            ))}
           </nav>
 
           <Link
