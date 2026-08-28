@@ -7,8 +7,8 @@ export default function Hero() {
   return (
     <section className="bg-teal-50">
       <Container>
-        <div className="grid min-h-[620px] items-center gap-12 py-16 md:grid-cols-2 lg:py-24">
-          <div>
+        <div className="flex min-h-[620px] flex-col items-center gap-12 py-16 md:flex-row lg:py-24">
+          <div className="w-full md:w-1/2">
             <span className="inline-flex rounded-full bg-teal-100 px-4 py-2 text-sm font-semibold text-teal-800">
               Atención veterinaria profesional
             </span>
@@ -39,7 +39,7 @@ export default function Hero() {
             </div>
           </div>
 
-          <div className="relative mx-auto aspect-[4/3] w-full max-w-xl overflow-hidden rounded-3xl">
+          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl md:w-1/2">
             <Image
               src="/images/hero/vetcare-hero.jpeg"
               alt="Veterinaria atendiendo a un perro"
