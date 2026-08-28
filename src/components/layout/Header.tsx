@@ -1,9 +1,10 @@
 import Link from "next/link";
 import Container from "@/components/ui/Container";
+import MobileMenu from "@/components/layout/MobileMenu";
 
 export default function Header() {
   return (
-    <header className="border-b border-slate-200 bg-white">
+    <header className="relative border-b border-slate-200 bg-white">
       <Container>
         <div className="flex h-16 items-center justify-between">
           <Link href="/" className="text-2xl font-bold text-teal-700">
@@ -39,6 +40,8 @@ export default function Header() {
           >
             Reservar turno
           </Link>
+
+          <MobileMenu />
         </div>
       </Container>
     </header>
