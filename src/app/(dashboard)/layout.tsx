@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { MobileDashboardMenu } from "@/components/dashboard/MobileDashboardMenu";
+import { AuthUserProvider } from "@/contexts/AuthUserContext";
 
 async function getCurrentUser() {
   const cookieStore = await cookies();
@@ -40,6 +41,7 @@ export default async function DashboardLayout({
   }
 
   return (
+    <AuthUserProvider user={user}>
     <div className="min-h-screen bg-gray-50">
       {/* HEADER MOBILE */}
       <header className="relative border-b bg-white lg:hidden">
@@ -131,5 +133,6 @@ export default async function DashboardLayout({
         </main>
       </div>
     </div>
+    </AuthUserProvider>
   );
 }
