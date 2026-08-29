@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
+import CancelAppointmentButton from "@/components/appointments/CancelAppointmentButton";
 
 const API_URL = process.env.API_URL;
 
@@ -89,6 +90,20 @@ export default async function AppointmentsPage() {
                   {appointment.status}
                 </span>
               </div>
+              <div className="mt-4 flex items-center gap-4">
+              <Link
+                href={`/appointments/${appointment.id}/edit`}
+                className="text-sm font-semibold text-teal-700 hover:text-teal-800"
+              >
+                Editar
+              </Link>
+
+              {appointment.status !== "CANCELLED" && (
+                <CancelAppointmentButton
+                  appointmentId={appointment.id}
+                />
+              )}
+            </div>
             </article>
           ))}
         </div>
