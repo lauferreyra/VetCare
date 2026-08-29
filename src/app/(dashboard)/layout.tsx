@@ -1,85 +1,127 @@
-import { cookies } from 'next/headers';
-import Link from 'next/link';
-import { redirect } from 'next/navigation';
+import Link from "next/link";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { MobileDashboardMenu } from "@/components/dashboard/MobileDashboardMenu";
 
-const API_URL = process.env.API_URL;
+async function getCurrentUser() {
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get("accessToken")?.value;
+
+  if (!accessToken) {
+    return null;
+  }
+
+  const response = await fetch(
+    `${process.env.API_URL}/auth/me`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      cache: "no-store",
+    },
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return response.json();
+}
 
 export default async function DashboardLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get('accessToken')?.value;
+  const user = await getCurrentUser();
 
-  if (!accessToken) {
-    redirect('/login');
+  if (!user) {
+    redirect("/login");
   }
-
-  const response = await fetch(`${API_URL}/auth/me`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    cache: 'no-store',
-  });
-
-  if (!response.ok) {
-    redirect('/login');
-  }
-
-  const user = await response.json();
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">
-              VetCare
-            </h1>
+      {/* HEADER MOBILE */}
+      <header className="relative border-b bg-white lg:hidden">
+        <div className="flex h-16 items-center justify-between px-4">
+          <Link
+            href="/dashboard"
+            className="text-xl font-bold text-teal-600"
+          >
+            VetCare
+          </Link>
 
-            <p className="text-sm text-gray-500">
-              {user.email}
-            </p>
-          </div>
-
-          <nav className="flex items-center gap-6">
-            <Link
-              href="/dashboard"
-              className="text-sm font-medium text-gray-700 hover:text-teal-600"
-            >
-              Inicio
-            </Link>
-
-            <Link
-              href="/pets"
-              className="text-sm font-medium text-gray-700 hover:text-teal-600"
-            >
-              Mascotas
-            </Link>
-
-            <Link
-              href="/appointments"
-              className="text-sm font-medium text-gray-700 hover:text-teal-600"
-            >
-              Turnos
-            </Link>
-
-            <form action="/api/auth/logout" method="post">
-              <button
-                type="submit"
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-              >
-                Cerrar sesión
-              </button>
-            </form>
-          </nav>
+          <MobileDashboardMenu email={user.email} />
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        {children}
-      </main>
+      <div className="mx-auto flex max-w-7xl">
+        {/* SIDEBAR DESKTOP */}
+        <aside className="hidden min-h-screen w-64 shrink-0 border-r bg-white lg:block">
+          <div className="sticky top-0 p-6">
+            <Link
+              href="/dashboard"
+              className="text-2xl font-bold text-teal-600"
+            >
+              VetCare
+            </Link>
+
+            <nav className="mt-8 space-y-2">
+              <Link
+                href="/dashboard"
+                className="block rounded-lg px-4 py-3 hover:bg-gray-100"
+              >
+                Dashboard
+              </Link>
+
+              <Link
+                href="/pets"
+                className="block rounded-lg px-4 py-3 hover:bg-gray-100"
+              >
+                Mascotas
+              </Link>
+
+              <Link
+                href="/appointments"
+                className="block rounded-lg px-4 py-3 hover:bg-gray-100"
+              >
+                Turnos
+              </Link>
+
+              <Link
+                href="/appointments/new"
+                className="block rounded-lg bg-teal-600 px-4 py-3 text-center font-medium text-white hover:bg-teal-700"
+              >
+                + Reservar turno
+              </Link>
+            </nav>
+
+            <div className="mt-10 border-t pt-5">
+              <p className="truncate text-sm font-medium">
+                {user.email}
+              </p>
+
+              <form
+                action="/api/auth/logout"
+                method="post"
+                className="mt-3"
+              >
+                <button
+                  type="submit"
+                  className="text-sm font-medium text-red-600 hover:text-red-700"
+                >
+                  Cerrar sesión
+                </button>
+              </form>
+            </div>
+          </div>
+        </aside>
+
+        {/* CONTENIDO */}
+        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
