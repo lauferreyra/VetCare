@@ -14,8 +14,7 @@ export async function GET() {
     );
   }
 
-  const response = await fetch(`${API_URL}/pets`, {
-    method: "GET",
+  const response = await fetch(`${API_URL}/appointments`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
@@ -42,7 +41,7 @@ export async function POST(request: Request) {
 
   const body = await request.json();
 
-  const response = await fetch(`${API_URL}/pets`, {
+  const response = await fetch(`${API_URL}/appointments`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
