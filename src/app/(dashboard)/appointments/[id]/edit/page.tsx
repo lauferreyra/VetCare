@@ -1,21 +1,18 @@
 "use client";
 
-import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
 import {
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
+import {
+  FormEvent,
+  useEffect,
+  useState,
+} from "react";
 
 import { useNotificationStore } from "@/stores/useNotificationStore";
-
-type AppointmentStatus =
-  | "PENDING"
-  | "CONFIRMED"
-  | "CANCELLED"
-  | "COMPLETED";
 
 type Pet = {
   id: number;
@@ -24,45 +21,69 @@ type Pet = {
 
 type Appointment = {
   id: number;
-  date: string;
   reason: string;
-  status: AppointmentStatus;
+  status:
+    | "PENDING"
+    | "CONFIRMED"
+    | "CANCELLED"
+    | "COMPLETED";
   petId: number;
+  slotId: number | null;
+  slot: {
+    id: number;
+    startTime: string;
+  } | null;
 };
 
-type UpdateAppointmentPayload = {
-  petId: number;
-  date: string;
-  reason: string;
-  status: AppointmentStatus;
+type AvailabilitySlot = {
+  id: number;
+  startTime: string;
+  time: string;
+  available: boolean;
 };
 
-async function getAppointment(id: string): Promise<Appointment> {
-  const response = await fetch(`/api/appointments/${id}`, {
-    cache: "no-store",
-  });
+type AvailabilityResponse = {
+  date: string;
+  slots: AvailabilitySlot[];
+};
 
-  const data = await response.json();
+async function getAppointment(
+  id: string,
+): Promise<Appointment> {
+  const response = await fetch(
+    `/api/appointments/${id}`,
+  );
 
   if (!response.ok) {
-    throw new Error(
-      data.message ?? "No se pudo cargar el turno",
-    );
+    throw new Error("Error al obtener el turno");
   }
 
-  return data;
+  return response.json();
 }
 
 async function getPets(): Promise<Pet[]> {
-  const response = await fetch("/api/pets", {
-    cache: "no-store",
-  });
+  const response = await fetch("/api/pets");
+
+  if (!response.ok) {
+    throw new Error("Error al obtener las mascotas");
+  }
+
+  return response.json();
+}
+
+async function getAvailability(
+  date: string,
+): Promise<AvailabilityResponse> {
+  const response = await fetch(
+    `/api/appointments/availability?date=${date}`,
+  );
 
   const data = await response.json();
 
   if (!response.ok) {
     throw new Error(
-      data.message ?? "No se pudieron cargar las mascotas",
+      data.message ??
+        "Error al consultar disponibilidad",
     );
   }
 
@@ -71,30 +92,36 @@ async function getPets(): Promise<Pet[]> {
 
 async function updateAppointment({
   id,
-  payload,
+  data,
 }: {
   id: string;
-  payload: UpdateAppointmentPayload;
+  data: {
+    petId: number;
+    slotId: number;
+    reason: string;
+  };
 }) {
-  const response = await fetch(`/api/appointments/${id}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
+  const response = await fetch(
+    `/api/appointments/${id}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
     },
-    body: JSON.stringify(payload),
-  });
+  );
 
-  const data = await response.json();
+  const responseData = await response.json();
 
   if (!response.ok) {
     throw new Error(
-      Array.isArray(data.message)
-        ? data.message.join(", ")
-        : data.message ?? "No se pudo actualizar el turno",
+      responseData.message ??
+        "Error al modificar el turno",
     );
   }
 
-  return data;
+  return responseData;
 }
 
 export default function EditAppointmentPage() {
@@ -107,29 +134,42 @@ export default function EditAppointmentPage() {
   );
 
   const [petId, setPetId] = useState("");
-  const [date, setDate] = useState("");
   const [reason, setReason] = useState("");
-  const [status, setStatus] =
-    useState<AppointmentStatus>("PENDING");
+
+  const [selectedDate, setSelectedDate] =
+    useState("");
+
+  const [selectedSlotId, setSelectedSlotId] =
+    useState<number | null>(null);
 
   const {
     data: appointment,
-    isPending: isLoadingAppointment,
-    isError: isAppointmentError,
-    error: appointmentError,
+    isLoading: isLoadingAppointment,
   } = useQuery({
     queryKey: ["appointment", params.id],
-    queryFn: () => getAppointment(params.id),
+    queryFn: () =>
+      getAppointment(params.id),
   });
 
   const {
-    data: pets,
-    isPending: isLoadingPets,
-    isError: isPetsError,
-    error: petsError,
+    data: pets = [],
+    isLoading: isLoadingPets,
   } = useQuery({
     queryKey: ["pets"],
     queryFn: getPets,
+  });
+
+  const {
+    data: availability,
+    isLoading: isLoadingAvailability,
+  } = useQuery({
+    queryKey: [
+      "availability",
+      selectedDate,
+    ],
+    queryFn: () =>
+      getAvailability(selectedDate),
+    enabled: !!selectedDate,
   });
 
   useEffect(() => {
@@ -137,20 +177,32 @@ export default function EditAppointmentPage() {
       return;
     }
 
-    setPetId(String(appointment.petId));
+    setPetId(
+      String(appointment.petId),
+    );
+
     setReason(appointment.reason);
-    setStatus(appointment.status);
 
-    const appointmentDate = new Date(appointment.date);
+    if (appointment.slot) {
+      const date = new Date(
+        appointment.slot.startTime,
+      );
 
-    const localDate = new Date(
-      appointmentDate.getTime() -
-        appointmentDate.getTimezoneOffset() * 60_000,
-    )
-      .toISOString()
-      .slice(0, 16);
+      const localDate =
+        date.toLocaleDateString(
+          "en-CA",
+          {
+            timeZone:
+              "America/Argentina/Buenos_Aires",
+          },
+        );
 
-    setDate(localDate);
+      setSelectedDate(localDate);
+
+      setSelectedSlotId(
+        appointment.slot.id,
+      );
+    }
   }, [appointment]);
 
   const mutation = useMutation({
@@ -161,11 +213,20 @@ export default function EditAppointmentPage() {
         queryClient.invalidateQueries({
           queryKey: ["appointments"],
         }),
+
         queryClient.invalidateQueries({
-          queryKey: ["appointment", params.id],
+          queryKey: [
+            "appointment",
+            params.id,
+          ],
         }),
+
         queryClient.invalidateQueries({
           queryKey: ["pets"],
+        }),
+
+        queryClient.invalidateQueries({
+          queryKey: ["availability"],
         }),
       ]);
 
@@ -177,89 +238,97 @@ export default function EditAppointmentPage() {
       router.push("/appointments");
     },
 
-    onError: (error) => {
+    onError: (error: Error) => {
       showNotification(
-        error instanceof Error
-          ? error.message
-          : "No se pudo actualizar el turno",
+        error.message,
         "error",
       );
+
+      queryClient.invalidateQueries({
+        queryKey: ["availability"],
+      });
     },
   });
+
+  function handleDateChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    setSelectedDate(
+      event.target.value,
+    );
+
+    setSelectedSlotId(null);
+  }
 
   function handleSubmit(
     event: FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
 
+    if (!petId) {
+      showNotification(
+        "Seleccioná una mascota",
+        "error",
+      );
+      return;
+    }
+
+    if (!selectedSlotId) {
+      showNotification(
+        "Seleccioná un horario",
+        "error",
+      );
+      return;
+    }
+
     mutation.mutate({
       id: params.id,
-      payload: {
+      data: {
         petId: Number(petId),
-        date: new Date(date).toISOString(),
+        slotId: selectedSlotId,
         reason,
-        status,
       },
     });
   }
 
-  if (isLoadingAppointment || isLoadingPets) {
+  if (isLoadingAppointment) {
     return <p>Cargando turno...</p>;
   }
 
-  if (isAppointmentError) {
-    return (
-      <p className="text-red-600">
-        {appointmentError instanceof Error
-          ? appointmentError.message
-          : "No se pudo cargar el turno"}
-      </p>
-    );
-  }
-
-  if (isPetsError) {
-    return (
-      <p className="text-red-600">
-        {petsError instanceof Error
-          ? petsError.message
-          : "No se pudieron cargar las mascotas"}
-      </p>
-    );
+  if (!appointment) {
+    return <p>Turno no encontrado.</p>;
   }
 
   return (
-    <section className="max-w-2xl">
-      <h1 className="text-3xl font-bold text-slate-900">
+    <div className="mx-auto w-full max-w-2xl">
+      <h1 className="mb-6 text-2xl font-bold">
         Editar turno
       </h1>
 
-      <p className="mt-2 text-slate-600">
-        Modificá los datos del turno.
-      </p>
-
       <form
         onSubmit={handleSubmit}
-        className="mt-8 space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+        className="space-y-6"
       >
         <div>
-          <label
-            htmlFor="petId"
-            className="mb-2 block text-sm font-medium text-slate-700"
-          >
+          <label className="mb-2 block font-medium">
             Mascota
           </label>
 
           <select
-            id="petId"
             value={petId}
             onChange={(event) =>
-              setPetId(event.target.value)
+              setPetId(
+                event.target.value,
+              )
             }
-            required
-            className="w-full rounded-lg border border-slate-300 px-4 py-3"
+            disabled={isLoadingPets}
+            className="w-full rounded-lg border px-3 py-2"
           >
-            {pets?.map((pet) => (
-              <option key={pet.id} value={pet.id}>
+            {pets.map((pet) => (
+              <option
+                key={pet.id}
+                value={pet.id}
+              >
                 {pet.name}
               </option>
             ))}
@@ -267,97 +336,97 @@ export default function EditAppointmentPage() {
         </div>
 
         <div>
-          <label
-            htmlFor="date"
-            className="mb-2 block text-sm font-medium text-slate-700"
-          >
-            Fecha y hora
+          <label className="mb-2 block font-medium">
+            Fecha
           </label>
 
           <input
-            id="date"
-            type="datetime-local"
-            value={date}
-            onChange={(event) =>
-              setDate(event.target.value)
-            }
-            required
-            className="w-full rounded-lg border border-slate-300 px-4 py-3"
+            type="date"
+            value={selectedDate}
+            onChange={handleDateChange}
+            className="w-full rounded-lg border px-3 py-2"
           />
         </div>
 
+        {selectedDate && availability && (
+          <div>
+            <label className="mb-2 block font-medium">
+              Horario
+            </label>
+
+            {isLoadingAvailability ? (
+              <p>Consultando horarios...</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {availability.slots.map(
+                  (slot) => {
+                    const isCurrentSlot =
+                      slot.id ===
+                      appointment.slotId;
+
+                    const selectable =
+                      slot.available ||
+                      isCurrentSlot;
+
+                    return (
+                      <button
+                        key={slot.id}
+                        type="button"
+                        disabled={
+                          !selectable
+                        }
+                        onClick={() =>
+                          setSelectedSlotId(
+                            slot.id,
+                          )
+                        }
+                        className={`rounded-lg border px-3 py-2 text-sm ${
+                          selectedSlotId ===
+                          slot.id
+                            ? "bg-teal-600 text-white"
+                            : selectable
+                              ? "bg-white hover:bg-gray-50"
+                              : "cursor-not-allowed bg-gray-100 text-gray-400"
+                        }`}
+                      >
+                        {slot.time}
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <div>
-          <label
-            htmlFor="reason"
-            className="mb-2 block text-sm font-medium text-slate-700"
-          >
+          <label className="mb-2 block font-medium">
             Motivo
           </label>
 
           <textarea
-            id="reason"
             value={reason}
             onChange={(event) =>
-              setReason(event.target.value)
+              setReason(
+                event.target.value,
+              )
             }
+            minLength={3}
             required
-            rows={4}
-            className="w-full rounded-lg border border-slate-300 px-4 py-3"
+            className="w-full rounded-lg border px-3 py-2"
           />
         </div>
 
-        <div>
-          <label
-            htmlFor="status"
-            className="mb-2 block text-sm font-medium text-slate-700"
-          >
-            Estado
-          </label>
-
-          <select
-            id="status"
-            value={status}
-            onChange={(event) =>
-              setStatus(
-                event.target.value as AppointmentStatus,
-              )
-            }
-            className="w-full rounded-lg border border-slate-300 px-4 py-3"
-          >
-            <option value="PENDING">
-              Pendiente
-            </option>
-            <option value="CONFIRMED">
-              Confirmado
-            </option>
-            <option value="CANCELLED">
-              Cancelado
-            </option>
-            <option value="COMPLETED">
-              Completado
-            </option>
-          </select>
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={mutation.isPending}
-            className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
-          >
-            {mutation.isPending
-              ? "Guardando..."
-              : "Guardar cambios"}
-          </button>
-
-          <Link
-            href="/appointments"
-            className="rounded-lg border border-slate-300 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            Cancelar
-          </Link>
-        </div>
+        <button
+          type="submit"
+          disabled={mutation.isPending}
+          className="rounded-lg bg-teal-600 px-5 py-2 text-white disabled:opacity-50"
+        >
+          {mutation.isPending
+            ? "Guardando..."
+            : "Guardar cambios"}
+        </button>
       </form>
-    </section>
+    </div>
   );
 }
