@@ -1,59 +1,100 @@
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+
+import { authenticatedFetch } from "@/lib/api/authenticatedFetch";
 
 const API_URL = process.env.API_URL;
 
 export async function GET() {
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get("accessToken")?.value;
+  try {
+    const response =
+      await authenticatedFetch(
+        `${API_URL}/pets`,
+      );
 
-  if (!accessToken) {
+    const data = await response.json();
+
+    return NextResponse.json(data, {
+      status: response.status,
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "UNAUTHORIZED"
+    ) {
+      return NextResponse.json(
+        {
+          message: "No autenticado",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
     return NextResponse.json(
-      { message: "No autenticado" },
-      { status: 401 },
+      {
+        message:
+          "Error al obtener mascotas",
+      },
+      {
+        status: 500,
+      },
     );
   }
-
-  const response = await fetch(`${API_URL}/pets`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    cache: "no-store",
-  });
-
-  const data = await response.json();
-
-  return NextResponse.json(data, {
-    status: response.status,
-  });
 }
 
-export async function POST(request: Request) {
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get("accessToken")?.value;
+export async function POST(
+  request: NextRequest,
+) {
+  try {
+    const body = await request.json();
 
-  if (!accessToken) {
+    const response =
+      await authenticatedFetch(
+        `${API_URL}/pets`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body: JSON.stringify(body),
+        },
+      );
+
+    const data = await response.json();
+
+    return NextResponse.json(data, {
+      status: response.status,
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "UNAUTHORIZED"
+    ) {
+      return NextResponse.json(
+        {
+          message: "No autenticado",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
     return NextResponse.json(
-      { message: "No autenticado" },
-      { status: 401 },
+      {
+        message:
+          "Error al crear mascota",
+      },
+      {
+        status: 500,
+      },
     );
   }
-
-  const body = await request.json();
-
-  const response = await fetch(`${API_URL}/pets`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = await response.json();
-
-  return NextResponse.json(data, {
-    status: response.status,
-  });
 }

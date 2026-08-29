@@ -55,7 +55,7 @@ export default async function DashboardLayout({
         </div>
       </header>
 
-      <div className="mx-auto flex max-w-7xl">
+      <div className="flex w-full">
         {/* SIDEBAR DESKTOP */}
         <aside className="hidden min-h-screen w-64 shrink-0 border-r bg-white lg:block">
           <div className="sticky top-0 p-6">
