@@ -32,3 +32,67 @@ export async function DELETE(
     status: response.status,
   });
 }
+
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const { id } = await context.params;
+
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get("accessToken")?.value;
+
+  if (!accessToken) {
+    return NextResponse.json(
+      { message: "No autenticado" },
+      { status: 401 },
+    );
+  }
+
+  const response = await fetch(`${API_URL}/pets/${id}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    cache: "no-store",
+  });
+
+  const data = await response.json();
+
+  return NextResponse.json(data, {
+    status: response.status,
+  });
+}
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const { id } = await context.params;
+
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get("accessToken")?.value;
+
+  if (!accessToken) {
+    return NextResponse.json(
+      { message: "No autenticado" },
+      { status: 401 },
+    );
+  }
+
+  const body = await request.json();
+
+  const response = await fetch(`${API_URL}/pets/${id}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json();
+
+  return NextResponse.json(data, {
+    status: response.status,
+  });
+}
