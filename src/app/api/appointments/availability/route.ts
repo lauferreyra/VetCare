@@ -1,38 +1,63 @@
-import { cookies } from 'next/headers';
-import { NextRequest, NextResponse } from 'next/server';
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+
+import { authenticatedFetch } from "@/lib/api/authenticatedFetch";
 
 const API_URL = process.env.API_URL;
 
-export async function GET(request: NextRequest) {
-  const cookieStore = await cookies();
+export async function GET(
+  request: NextRequest,
+) {
+  try {
+    const date =
+      request.nextUrl.searchParams.get("date");
 
-  const accessToken =
-    cookieStore.get('accessToken')?.value;
+    if (!date) {
+      return NextResponse.json(
+        {
+          message: "La fecha es obligatoria",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
 
-  if (!accessToken) {
+    const response =
+      await authenticatedFetch(
+        `${API_URL}/appointments/availability?date=${encodeURIComponent(date)}`,
+      );
+
+    const data = await response.json();
+
+    return NextResponse.json(data, {
+      status: response.status,
+    });
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+function handleError(error: unknown) {
+  if (
+    error instanceof Error &&
+    error.message === "UNAUTHORIZED"
+  ) {
     return NextResponse.json(
-      { message: 'No autenticado' },
+      { message: "No autenticado" },
       { status: 401 },
     );
   }
 
-  const { searchParams } = new URL(request.url);
-
-  const date = searchParams.get('date');
-
-  const response = await fetch(
-    `${API_URL}/appointments/availability?date=${date}`,
+  return NextResponse.json(
     {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      cache: 'no-store',
+      message:
+        "Error al consultar disponibilidad",
+    },
+    {
+      status: 500,
     },
   );
-
-  const data = await response.json();
-
-  return NextResponse.json(data, {
-    status: response.status,
-  });
 }

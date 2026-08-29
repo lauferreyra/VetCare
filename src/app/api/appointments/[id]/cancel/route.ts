@@ -1,47 +1,57 @@
-import { cookies } from "next/headers";
 import {
   NextRequest,
   NextResponse,
 } from "next/server";
 
+import { authenticatedFetch } from "@/lib/api/authenticatedFetch";
+
 const API_URL = process.env.API_URL;
+
+type Params = {
+  params: Promise<{
+    id: string;
+  }>;
+};
 
 export async function PATCH(
   _request: NextRequest,
-  context: {
-    params: Promise<{ id: string }>;
-  },
+  { params }: Params,
 ) {
-  const { id } = await context.params;
+  try {
+    const { id } = await params;
 
-  const cookieStore = await cookies();
-  const accessToken =
-    cookieStore.get("accessToken")?.value;
+    const response =
+      await authenticatedFetch(
+        `${API_URL}/appointments/${id}/cancel`,
+        {
+          method: "PATCH",
+        },
+      );
 
-  if (!accessToken) {
+    const data = await response.json();
+
+    return NextResponse.json(data, {
+      status: response.status,
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "UNAUTHORIZED"
+    ) {
+      return NextResponse.json(
+        { message: "No autenticado" },
+        { status: 401 },
+      );
+    }
+
     return NextResponse.json(
       {
-        message: "No autenticado",
+        message:
+          "Error al cancelar el turno",
       },
       {
-        status: 401,
+        status: 500,
       },
     );
   }
-
-  const response = await fetch(
-    `${API_URL}/appointments/${id}/cancel`,
-    {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-  );
-
-  const data = await response.json();
-
-  return NextResponse.json(data, {
-    status: response.status,
-  });
 }

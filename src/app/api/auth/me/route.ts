@@ -1,34 +1,40 @@
-import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+
+import { authenticatedFetch } from "@/lib/api/authenticatedFetch";
 
 const API_URL = process.env.API_URL;
 
 export async function GET() {
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get('accessToken')?.value;
+  try {
+    const response =
+      await authenticatedFetch(
+        `${API_URL}/auth/me`,
+      );
 
-  if (!accessToken) {
+    const data = await response.json();
+
+    return NextResponse.json(data, {
+      status: response.status,
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "UNAUTHORIZED"
+    ) {
+      return NextResponse.json(
+        { message: "No autenticado" },
+        { status: 401 },
+      );
+    }
+
     return NextResponse.json(
       {
-        message: 'No autenticado',
+        message:
+          "Error al obtener el usuario",
       },
       {
-        status: 401,
+        status: 500,
       },
     );
   }
-
-  const response = await fetch(`${API_URL}/auth/me`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    cache: 'no-store',
-  });
-
-  const data = await response.json();
-
-  return NextResponse.json(data, {
-    status: response.status,
-  });
 }

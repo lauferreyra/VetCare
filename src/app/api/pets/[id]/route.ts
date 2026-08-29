@@ -1,98 +1,108 @@
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+
+import { authenticatedFetch } from "@/lib/api/authenticatedFetch";
 
 const API_URL = process.env.API_URL;
 
-export async function DELETE(
-  _request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  const { id } = await context.params;
-
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get("accessToken")?.value;
-
-  if (!accessToken) {
-    return NextResponse.json(
-      { message: "No autenticado" },
-      { status: 401 },
-    );
-  }
-
-  const response = await fetch(`${API_URL}/pets/${id}`, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
-
-  const data = await response.json();
-
-  return NextResponse.json(data, {
-    status: response.status,
-  });
-}
+type Params = {
+  params: Promise<{
+    id: string;
+  }>;
+};
 
 export async function GET(
-  _request: Request,
-  context: { params: Promise<{ id: string }> },
+  _request: NextRequest,
+  { params }: Params,
 ) {
-  const { id } = await context.params;
+  try {
+    const { id } = await params;
 
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get("accessToken")?.value;
-
-  if (!accessToken) {
-    return NextResponse.json(
-      { message: "No autenticado" },
-      { status: 401 },
+    const response = await authenticatedFetch(
+      `${API_URL}/pets/${id}`,
     );
+
+    const data = await response.json();
+
+    return NextResponse.json(data, {
+      status: response.status,
+    });
+  } catch (error) {
+    return handleError(error);
   }
-
-  const response = await fetch(`${API_URL}/pets/${id}`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    cache: "no-store",
-  });
-
-  const data = await response.json();
-
-  return NextResponse.json(data, {
-    status: response.status,
-  });
 }
 
 export async function PATCH(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
+  request: NextRequest,
+  { params }: Params,
 ) {
-  const { id } = await context.params;
+  try {
+    const { id } = await params;
+    const body = await request.json();
 
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get("accessToken")?.value;
+    const response = await authenticatedFetch(
+      `${API_URL}/pets/${id}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+    );
 
-  if (!accessToken) {
+    const data = await response.json();
+
+    return NextResponse.json(data, {
+      status: response.status,
+    });
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: Params,
+) {
+  try {
+    const { id } = await params;
+
+    const response = await authenticatedFetch(
+      `${API_URL}/pets/${id}`,
+      {
+        method: "DELETE",
+      },
+    );
+
+    if (response.status === 204) {
+      return new NextResponse(null, {
+        status: 204,
+      });
+    }
+
+    const data = await response.json();
+
+    return NextResponse.json(data, {
+      status: response.status,
+    });
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+function handleError(error: unknown) {
+  if (
+    error instanceof Error &&
+    error.message === "UNAUTHORIZED"
+  ) {
     return NextResponse.json(
       { message: "No autenticado" },
       { status: 401 },
     );
   }
 
-  const body = await request.json();
-
-  const response = await fetch(`${API_URL}/pets/${id}`, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = await response.json();
-
-  return NextResponse.json(data, {
-    status: response.status,
-  });
+  return NextResponse.json(
+    { message: "Error interno del servidor" },
+    { status: 500 },
+  );
 }
