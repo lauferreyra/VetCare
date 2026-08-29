@@ -2,60 +2,88 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+
+import { useNotificationStore } from "@/stores/useNotificationStore";
+
+type CreatePetPayload = {
+  name: string;
+  species: string;
+  breed?: string;
+  birthDate?: string;
+};
+
+async function createPet(payload: CreatePetPayload) {
+  const response = await fetch("/api/pets", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      Array.isArray(data.message)
+        ? data.message.join(", ")
+        : data.message ?? "No se pudo crear la mascota",
+    );
+  }
+
+  return data;
+}
 
 export default function NewPetPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const showNotification = useNotificationStore(
+    (state) => state.showNotification,
+  );
 
   const [name, setName] = useState("");
   const [species, setSpecies] = useState("");
   const [breed, setBreed] = useState("");
   const [birthDate, setBirthDate] = useState("");
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const mutation = useMutation({
+    mutationFn: createPet,
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    try {
-      setLoading(true);
-      setError("");
-
-      const response = await fetch("/api/pets", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          species,
-          breed: breed || undefined,
-          birthDate: birthDate || undefined,
-        }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["pets"],
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          Array.isArray(data.message)
-            ? data.message.join(", ")
-            : data.message ?? "No se pudo crear la mascota",
-        );
-      }
+      showNotification(
+        "Mascota creada correctamente",
+        "success",
+      );
 
       router.push("/pets");
-      router.refresh();
-    } catch (error) {
-      setError(
+    },
+
+    onError: (error) => {
+      showNotification(
         error instanceof Error
           ? error.message
-          : "Ocurrió un error al crear la mascota",
+          : "No se pudo crear la mascota",
+        "error",
       );
-    } finally {
-      setLoading(false);
-    }
+    },
+  });
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    mutation.mutate({
+      name,
+      species,
+      breed: breed || undefined,
+      birthDate: birthDate || undefined,
+    });
   }
 
   return (
@@ -87,8 +115,7 @@ export default function NewPetPage() {
             value={name}
             onChange={(event) => setName(event.target.value)}
             required
-            placeholder="Firulais"
-            className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-teal-700"
+            className="w-full rounded-lg border border-slate-300 px-4 py-3"
           />
         </div>
 
@@ -105,8 +132,7 @@ export default function NewPetPage() {
             value={species}
             onChange={(event) => setSpecies(event.target.value)}
             required
-            placeholder="Perro"
-            className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-teal-700"
+            className="w-full rounded-lg border border-slate-300 px-4 py-3"
           />
         </div>
 
@@ -122,8 +148,7 @@ export default function NewPetPage() {
             id="breed"
             value={breed}
             onChange={(event) => setBreed(event.target.value)}
-            placeholder="Labrador"
-            className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-teal-700"
+            className="w-full rounded-lg border border-slate-300 px-4 py-3"
           />
         </div>
 
@@ -140,28 +165,24 @@ export default function NewPetPage() {
             type="date"
             value={birthDate}
             onChange={(event) => setBirthDate(event.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-teal-700"
+            className="w-full rounded-lg border border-slate-300 px-4 py-3"
           />
         </div>
-
-        {error && (
-          <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
-            {error}
-          </p>
-        )}
 
         <div className="flex gap-3">
           <button
             type="submit"
-            disabled={loading}
-            className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white transition-colors hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={mutation.isPending}
+            className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
           >
-            {loading ? "Guardando..." : "Guardar mascota"}
+            {mutation.isPending
+              ? "Guardando..."
+              : "Guardar mascota"}
           </button>
 
           <Link
             href="/pets"
-            className="rounded-lg border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            className="rounded-lg border border-slate-300 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
           >
             Cancelar
           </Link>
