@@ -2,152 +2,240 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
+
+import { useNotificationStore } from "@/stores/useNotificationStore";
+
+type AppointmentStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "CANCELLED"
+  | "COMPLETED";
 
 type Pet = {
   id: number;
   name: string;
-  species: string;
 };
 
 type Appointment = {
   id: number;
   date: string;
   reason: string;
-  status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED";
+  status: AppointmentStatus;
   petId: number;
 };
 
-export default function EditAppointmentPage() {
-  const router = useRouter();
-  const params = useParams<{ id: string }>();
+type UpdateAppointmentPayload = {
+  petId: number;
+  date: string;
+  reason: string;
+  status: AppointmentStatus;
+};
 
-  const [pets, setPets] = useState<Pet[]>([]);
+async function getAppointment(id: string): Promise<Appointment> {
+  const response = await fetch(`/api/appointments/${id}`, {
+    cache: "no-store",
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message ?? "No se pudo cargar el turno",
+    );
+  }
+
+  return data;
+}
+
+async function getPets(): Promise<Pet[]> {
+  const response = await fetch("/api/pets", {
+    cache: "no-store",
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message ?? "No se pudieron cargar las mascotas",
+    );
+  }
+
+  return data;
+}
+
+async function updateAppointment({
+  id,
+  payload,
+}: {
+  id: string;
+  payload: UpdateAppointmentPayload;
+}) {
+  const response = await fetch(`/api/appointments/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      Array.isArray(data.message)
+        ? data.message.join(", ")
+        : data.message ?? "No se pudo actualizar el turno",
+    );
+  }
+
+  return data;
+}
+
+export default function EditAppointmentPage() {
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const showNotification = useNotificationStore(
+    (state) => state.showNotification,
+  );
+
   const [petId, setPetId] = useState("");
   const [date, setDate] = useState("");
   const [reason, setReason] = useState("");
-  const [status, setStatus] = useState<Appointment["status"]>("PENDING");
+  const [status, setStatus] =
+    useState<AppointmentStatus>("PENDING");
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    data: appointment,
+    isPending: isLoadingAppointment,
+    isError: isAppointmentError,
+    error: appointmentError,
+  } = useQuery({
+    queryKey: ["appointment", params.id],
+    queryFn: () => getAppointment(params.id),
+  });
+
+  const {
+    data: pets,
+    isPending: isLoadingPets,
+    isError: isPetsError,
+    error: petsError,
+  } = useQuery({
+    queryKey: ["pets"],
+    queryFn: getPets,
+  });
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        setError("");
-
-        const [appointmentResponse, petsResponse] = await Promise.all([
-          fetch(`/api/appointments/${params.id}`, {
-            cache: "no-store",
-          }),
-          fetch("/api/pets", {
-            cache: "no-store",
-          }),
-        ]);
-
-        const appointmentData = await appointmentResponse.json();
-        const petsData = await petsResponse.json();
-
-        if (!appointmentResponse.ok) {
-          throw new Error(
-            appointmentData.message ?? "No se pudo cargar el turno",
-          );
-        }
-
-        if (!petsResponse.ok) {
-          throw new Error(
-            petsData.message ?? "No se pudieron cargar las mascotas",
-          );
-        }
-
-        setPets(petsData);
-        setPetId(String(appointmentData.petId));
-        setReason(appointmentData.reason);
-        setStatus(appointmentData.status);
-
-        const appointmentDate = new Date(appointmentData.date);
-
-        const localDate = new Date(
-          appointmentDate.getTime() -
-            appointmentDate.getTimezoneOffset() * 60_000,
-        )
-          .toISOString()
-          .slice(0, 16);
-
-        setDate(localDate);
-      } catch (error) {
-        setError(
-          error instanceof Error
-            ? error.message
-            : "No se pudo cargar el turno",
-        );
-      } finally {
-        setLoading(false);
-      }
+    if (!appointment) {
+      return;
     }
 
-    loadData();
-  }, [params.id]);
+    setPetId(String(appointment.petId));
+    setReason(appointment.reason);
+    setStatus(appointment.status);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+    const appointmentDate = new Date(appointment.date);
 
-    try {
-      setSaving(true);
-      setError("");
+    const localDate = new Date(
+      appointmentDate.getTime() -
+        appointmentDate.getTimezoneOffset() * 60_000,
+    )
+      .toISOString()
+      .slice(0, 16);
 
-      const response = await fetch(`/api/appointments/${params.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          petId: Number(petId),
-          date: new Date(date).toISOString(),
-          reason,
-          status,
+    setDate(localDate);
+  }, [appointment]);
+
+  const mutation = useMutation({
+    mutationFn: updateAppointment,
+
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["appointments"],
         }),
-      });
+        queryClient.invalidateQueries({
+          queryKey: ["appointment", params.id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["pets"],
+        }),
+      ]);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          Array.isArray(data.message)
-            ? data.message.join(", ")
-            : data.message ?? "No se pudo actualizar el turno",
-        );
-      }
+      showNotification(
+        "Turno actualizado correctamente",
+        "success",
+      );
 
       router.push("/appointments");
-      router.refresh();
-    } catch (error) {
-      setError(
+    },
+
+    onError: (error) => {
+      showNotification(
         error instanceof Error
           ? error.message
           : "No se pudo actualizar el turno",
+        "error",
       );
-    } finally {
-      setSaving(false);
-    }
+    },
+  });
+
+  function handleSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    mutation.mutate({
+      id: params.id,
+      payload: {
+        petId: Number(petId),
+        date: new Date(date).toISOString(),
+        reason,
+        status,
+      },
+    });
   }
 
-  if (loading) {
-    return <p className="text-slate-600">Cargando turno...</p>;
+  if (isLoadingAppointment || isLoadingPets) {
+    return <p>Cargando turno...</p>;
+  }
+
+  if (isAppointmentError) {
+    return (
+      <p className="text-red-600">
+        {appointmentError instanceof Error
+          ? appointmentError.message
+          : "No se pudo cargar el turno"}
+      </p>
+    );
+  }
+
+  if (isPetsError) {
+    return (
+      <p className="text-red-600">
+        {petsError instanceof Error
+          ? petsError.message
+          : "No se pudieron cargar las mascotas"}
+      </p>
+    );
   }
 
   return (
     <section className="max-w-2xl">
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">
-          Editar turno
-        </h1>
+      <h1 className="text-3xl font-bold text-slate-900">
+        Editar turno
+      </h1>
 
-        <p className="mt-2 text-slate-600">
-          Modificá los datos del turno seleccionado.
-        </p>
-      </div>
+      <p className="mt-2 text-slate-600">
+        Modificá los datos del turno.
+      </p>
 
       <form
         onSubmit={handleSubmit}
@@ -155,22 +243,24 @@ export default function EditAppointmentPage() {
       >
         <div>
           <label
-            htmlFor="pet"
+            htmlFor="petId"
             className="mb-2 block text-sm font-medium text-slate-700"
           >
             Mascota
           </label>
 
           <select
-            id="pet"
+            id="petId"
             value={petId}
-            onChange={(event) => setPetId(event.target.value)}
+            onChange={(event) =>
+              setPetId(event.target.value)
+            }
             required
             className="w-full rounded-lg border border-slate-300 px-4 py-3"
           >
-            {pets.map((pet) => (
+            {pets?.map((pet) => (
               <option key={pet.id} value={pet.id}>
-                {pet.name} - {pet.species}
+                {pet.name}
               </option>
             ))}
           </select>
@@ -188,7 +278,9 @@ export default function EditAppointmentPage() {
             id="date"
             type="datetime-local"
             value={date}
-            onChange={(event) => setDate(event.target.value)}
+            onChange={(event) =>
+              setDate(event.target.value)
+            }
             required
             className="w-full rounded-lg border border-slate-300 px-4 py-3"
           />
@@ -204,10 +296,12 @@ export default function EditAppointmentPage() {
 
           <textarea
             id="reason"
-            rows={4}
             value={reason}
-            onChange={(event) => setReason(event.target.value)}
+            onChange={(event) =>
+              setReason(event.target.value)
+            }
             required
+            rows={4}
             className="w-full rounded-lg border border-slate-300 px-4 py-3"
           />
         </div>
@@ -224,30 +318,36 @@ export default function EditAppointmentPage() {
             id="status"
             value={status}
             onChange={(event) =>
-              setStatus(event.target.value as Appointment["status"])
+              setStatus(
+                event.target.value as AppointmentStatus,
+              )
             }
             className="w-full rounded-lg border border-slate-300 px-4 py-3"
           >
-            <option value="PENDING">Pendiente</option>
-            <option value="CONFIRMED">Confirmado</option>
-            <option value="CANCELLED">Cancelado</option>
-            <option value="COMPLETED">Completado</option>
+            <option value="PENDING">
+              Pendiente
+            </option>
+            <option value="CONFIRMED">
+              Confirmado
+            </option>
+            <option value="CANCELLED">
+              Cancelado
+            </option>
+            <option value="COMPLETED">
+              Completado
+            </option>
           </select>
         </div>
-
-        {error && (
-          <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
-            {error}
-          </p>
-        )}
 
         <div className="flex gap-3">
           <button
             type="submit"
-            disabled={saving}
+            disabled={mutation.isPending}
             className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
           >
-            {saving ? "Guardando..." : "Guardar cambios"}
+            {mutation.isPending
+              ? "Guardando..."
+              : "Guardar cambios"}
           </button>
 
           <Link
