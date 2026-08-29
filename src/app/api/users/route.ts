@@ -1,6 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { authenticatedFetch } from "@/lib/api/authenticatedFetch";
+import { handleApiError } from "@/lib/api/handleApiError";
+
 const API_URL = process.env.API_URL;
+
+export async function GET() {
+  try {
+    const response = await authenticatedFetch(
+      `${API_URL}/users`,
+    );
+
+    const data = await response.json();
+
+    return NextResponse.json(data, {
+      status: response.status,
+    });
+  } catch (error) {
+    return handleApiError(
+      error,
+      "Error al obtener los usuarios",
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

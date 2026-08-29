@@ -6,9 +6,10 @@ import { Menu, X } from "lucide-react";
 
 type Props = {
   email: string;
+  role: "USER" | "ADMIN";
 };
 
-export function MobileDashboardMenu({ email }: Props) {
+export function MobileDashboardMenu({ email, role }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -49,6 +50,16 @@ export function MobileDashboardMenu({ email }: Props) {
               Turnos
             </Link>
 
+            {role === "ADMIN" && (
+                <Link
+                    href="/users"
+                    onClick={() => setOpen(false)}
+                    className="block rounded-lg px-3 py-2 hover:bg-gray-100"
+                >
+                    Usuarios
+                </Link>
+                )}
+
             <Link
               href="/appointments/new"
               onClick={() => setOpen(false)}
@@ -56,6 +67,7 @@ export function MobileDashboardMenu({ email }: Props) {
             >
               + Reservar turno
             </Link>
+           
           </nav>
 
           <div className="mt-4 border-t pt-4">

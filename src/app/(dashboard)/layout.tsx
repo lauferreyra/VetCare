@@ -51,7 +51,7 @@ export default async function DashboardLayout({
             VetCare
           </Link>
 
-          <MobileDashboardMenu email={user.email} />
+          <MobileDashboardMenu email={user.email} role={user.role} />
         </div>
       </header>
 
@@ -88,12 +88,20 @@ export default async function DashboardLayout({
                 Turnos
               </Link>
 
+ {            user.role === "ADMIN" && (
+                <Link href="/users"
+                className="block rounded-lg px-4 py-3 hover:bg-gray-100"
+                >
+                  Usuarios
+                </Link>
+              )}
               <Link
                 href="/appointments/new"
                 className="block rounded-lg bg-teal-600 px-4 py-3 text-center font-medium text-white hover:bg-teal-700"
               >
                 + Reservar turno
               </Link>
+             
             </nav>
 
             <div className="mt-10 border-t pt-5">
