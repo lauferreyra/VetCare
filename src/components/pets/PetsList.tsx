@@ -6,7 +6,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-
+import { clientFetch } from "@/lib/api/clientFetch";
 import { useNotificationStore } from "@/stores/useNotificationStore";
 
 type Appointment = {
@@ -23,7 +23,7 @@ type Pet = {
 };
 
 async function getPets(): Promise<Pet[]> {
-  const response = await fetch("/api/pets", {
+  const response = await clientFetch("/api/pets", {
     cache: "no-store",
   });
 

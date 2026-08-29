@@ -1,17 +1,20 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import {
-  FormEvent,
-  useEffect,
-  useState,
-} from "react";
+import { useEffect, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 
+import { clientFetch } from "@/lib/api/clientFetch";
+import {
+  AppointmentFormData,
+  appointmentSchema,
+} from "@/lib/validations/appointmentSchema";
 import { useNotificationStore } from "@/stores/useNotificationStore";
 
 type Pet = {
@@ -50,58 +53,57 @@ type AvailabilityResponse = {
 async function getAppointment(
   id: string,
 ): Promise<Appointment> {
-  const response = await fetch(
+  const response = await clientFetch(
     `/api/appointments/${id}`,
-  );
-
-  if (!response.ok) {
-    throw new Error("Error al obtener el turno");
-  }
-
-  return response.json();
-}
-
-async function getPets(): Promise<Pet[]> {
-  const response = await fetch("/api/pets");
-
-  if (!response.ok) {
-    throw new Error("Error al obtener las mascotas");
-  }
-
-  return response.json();
-}
-
-async function getAvailability(
-  date: string,
-): Promise<AvailabilityResponse> {
-  const response = await fetch(
-    `/api/appointments/availability?date=${date}`,
   );
 
   const data = await response.json();
 
   if (!response.ok) {
     throw new Error(
-      data.message ??
-        "Error al consultar disponibilidad",
+      data.message ?? "No se pudo obtener el turno",
     );
   }
 
   return data;
 }
 
-async function updateAppointment({
-  id,
-  data,
-}: {
-  id: string;
-  data: {
-    petId: number;
-    slotId: number;
-    reason: string;
-  };
-}) {
-  const response = await fetch(
+async function getPets(): Promise<Pet[]> {
+  const response = await clientFetch("/api/pets");
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message ?? "No se pudieron obtener las mascotas",
+    );
+  }
+
+  return data;
+}
+
+async function getAvailability(
+  date: string,
+): Promise<AvailabilityResponse> {
+  const response = await clientFetch(
+    `/api/appointments/availability?date=${encodeURIComponent(date)}`,
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message ?? "No se pudo consultar disponibilidad",
+    );
+  }
+
+  return data;
+}
+
+async function updateAppointment(
+  id: string,
+  data: AppointmentFormData,
+) {
+  const response = await clientFetch(
     `/api/appointments/${id}`,
     {
       method: "PATCH",
@@ -117,7 +119,7 @@ async function updateAppointment({
   if (!response.ok) {
     throw new Error(
       responseData.message ??
-        "Error al modificar el turno",
+        "No se pudo actualizar el turno",
     );
   }
 
@@ -129,22 +131,37 @@ export default function EditAppointmentPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const showNotification = useNotificationStore(
-    (state) => state.showNotification,
-  );
-
-  const [petId, setPetId] = useState("");
-  const [reason, setReason] = useState("");
-
   const [selectedDate, setSelectedDate] =
     useState("");
 
-  const [selectedSlotId, setSelectedSlotId] =
-    useState<number | null>(null);
+  const showNotification =
+    useNotificationStore(
+      (state) => state.showNotification,
+    );
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<AppointmentFormData>({
+    resolver: zodResolver(appointmentSchema),
+    defaultValues: {
+      petId: 0,
+      slotId: 0,
+      reason: "",
+    },
+  });
+
+  const selectedSlotId = watch("slotId");
 
   const {
     data: appointment,
     isLoading: isLoadingAppointment,
+    isError,
   } = useQuery({
     queryKey: ["appointment", params.id],
     queryFn: () =>
@@ -169,7 +186,7 @@ export default function EditAppointmentPage() {
     ],
     queryFn: () =>
       getAvailability(selectedDate),
-    enabled: !!selectedDate,
+    enabled: Boolean(selectedDate),
   });
 
   useEffect(() => {
@@ -177,54 +194,44 @@ export default function EditAppointmentPage() {
       return;
     }
 
-    setPetId(
-      String(appointment.petId),
-    );
-
-    setReason(appointment.reason);
+    reset({
+      petId: appointment.petId,
+      slotId: appointment.slotId ?? 0,
+      reason: appointment.reason,
+    });
 
     if (appointment.slot) {
       const date = new Date(
         appointment.slot.startTime,
-      );
+      ).toLocaleDateString("en-CA", {
+        timeZone:
+          "America/Argentina/Buenos_Aires",
+      });
 
-      const localDate =
-        date.toLocaleDateString(
-          "en-CA",
-          {
-            timeZone:
-              "America/Argentina/Buenos_Aires",
-          },
-        );
-
-      setSelectedDate(localDate);
-
-      setSelectedSlotId(
-        appointment.slot.id,
-      );
+      setSelectedDate(date);
     }
-  }, [appointment]);
+  }, [appointment, reset]);
 
   const mutation = useMutation({
-    mutationFn: updateAppointment,
+    mutationFn: (
+      data: AppointmentFormData,
+    ) =>
+      updateAppointment(
+        params.id,
+        data,
+      ),
 
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: ["appointments"],
         }),
-
         queryClient.invalidateQueries({
           queryKey: [
             "appointment",
             params.id,
           ],
         }),
-
-        queryClient.invalidateQueries({
-          queryKey: ["pets"],
-        }),
-
         queryClient.invalidateQueries({
           queryKey: ["availability"],
         }),
@@ -243,87 +250,61 @@ export default function EditAppointmentPage() {
         error.message,
         "error",
       );
-
-      queryClient.invalidateQueries({
-        queryKey: ["availability"],
-      });
     },
   });
 
-  function handleDateChange(
-    event: React.ChangeEvent<HTMLInputElement>,
+  function onSubmit(
+    data: AppointmentFormData,
   ) {
-    setSelectedDate(
-      event.target.value,
-    );
-
-    setSelectedSlotId(null);
+    mutation.mutate(data);
   }
 
-  function handleSubmit(
-    event: FormEvent<HTMLFormElement>,
+  if (
+    isLoadingAppointment ||
+    isLoadingPets
   ) {
-    event.preventDefault();
-
-    if (!petId) {
-      showNotification(
-        "Seleccioná una mascota",
-        "error",
-      );
-      return;
-    }
-
-    if (!selectedSlotId) {
-      showNotification(
-        "Seleccioná un horario",
-        "error",
-      );
-      return;
-    }
-
-    mutation.mutate({
-      id: params.id,
-      data: {
-        petId: Number(petId),
-        slotId: selectedSlotId,
-        reason,
-      },
-    });
-  }
-
-  if (isLoadingAppointment) {
     return <p>Cargando turno...</p>;
   }
 
-  if (!appointment) {
-    return <p>Turno no encontrado.</p>;
+  if (isError || !appointment) {
+    return (
+      <p className="text-red-600">
+        No se pudo cargar el turno.
+      </p>
+    );
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
-      <h1 className="mb-6 text-2xl font-bold">
-        Editar turno
-      </h1>
+    <div className="mx-auto max-w-2xl">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">
+          Editar turno
+        </h1>
+
+        <p className="mt-1 text-gray-600">
+          Modificá la mascota, el horario o el motivo.
+        </p>
+      </div>
 
       <form
-        onSubmit={handleSubmit}
-        className="space-y-6"
+        onSubmit={handleSubmit(onSubmit)}
+        className="space-y-6 rounded-xl border bg-white p-6 shadow-sm"
       >
         <div>
-          <label className="mb-2 block font-medium">
+          <label className="mb-1 block text-sm font-medium">
             Mascota
           </label>
 
           <select
-            value={petId}
-            onChange={(event) =>
-              setPetId(
-                event.target.value,
-              )
-            }
-            disabled={isLoadingPets}
+            {...register("petId", {
+              valueAsNumber: true,
+            })}
             className="w-full rounded-lg border px-3 py-2"
           >
+            <option value={0}>
+              Seleccioná una mascota
+            </option>
+
             {pets.map((pet) => (
               <option
                 key={pet.id}
@@ -333,99 +314,143 @@ export default function EditAppointmentPage() {
               </option>
             ))}
           </select>
+
+          {errors.petId && (
+            <p className="mt-1 text-sm text-red-600">
+              {errors.petId.message}
+            </p>
+          )}
         </div>
 
         <div>
-          <label className="mb-2 block font-medium">
+          <label className="mb-1 block text-sm font-medium">
             Fecha
           </label>
 
           <input
             type="date"
             value={selectedDate}
-            onChange={handleDateChange}
+            onChange={(event) => {
+              setSelectedDate(
+                event.target.value,
+              );
+
+              setValue("slotId", 0);
+            }}
             className="w-full rounded-lg border px-3 py-2"
           />
         </div>
 
-        {selectedDate && availability && (
+        {selectedDate && (
           <div>
-            <label className="mb-2 block font-medium">
+            <p className="mb-2 text-sm font-medium">
               Horario
-            </label>
+            </p>
 
             {isLoadingAvailability ? (
-              <p>Consultando horarios...</p>
+              <p className="text-sm text-gray-500">
+                Consultando horarios...
+              </p>
             ) : (
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                {availability.slots.map(
-                  (slot) => {
-                    const isCurrentSlot =
-                      slot.id ===
-                      appointment.slotId;
+              <Controller
+                name="slotId"
+                control={control}
+                render={() => (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    {availability?.slots.map(
+                      (slot) => {
+                        const isCurrentSlot =
+                          slot.id ===
+                          appointment.slotId;
 
-                    const selectable =
-                      slot.available ||
-                      isCurrentSlot;
+                        const selectable =
+                          slot.available ||
+                          isCurrentSlot;
 
-                    return (
-                      <button
-                        key={slot.id}
-                        type="button"
-                        disabled={
-                          !selectable
-                        }
-                        onClick={() =>
-                          setSelectedSlotId(
-                            slot.id,
-                          )
-                        }
-                        className={`rounded-lg border px-3 py-2 text-sm ${
+                        const selected =
                           selectedSlotId ===
-                          slot.id
-                            ? "bg-teal-600 text-white"
-                            : selectable
-                              ? "bg-white hover:bg-gray-50"
-                              : "cursor-not-allowed bg-gray-100 text-gray-400"
-                        }`}
-                      >
-                        {slot.time}
-                      </button>
-                    );
-                  },
+                          slot.id;
+
+                        return (
+                          <button
+                            key={slot.id}
+                            type="button"
+                            disabled={!selectable}
+                            onClick={() =>
+                              setValue(
+                                "slotId",
+                                slot.id,
+                                {
+                                  shouldValidate:
+                                    true,
+                                },
+                              )
+                            }
+                            className={`rounded-lg border px-3 py-2 text-sm ${
+                              selected
+                                ? "border-teal-600 bg-teal-600 text-white"
+                                : selectable
+                                  ? "hover:border-teal-500"
+                                  : "cursor-not-allowed bg-gray-100 text-gray-400"
+                            }`}
+                          >
+                            {slot.time}
+                          </button>
+                        );
+                      },
+                    )}
+                  </div>
                 )}
-              </div>
+              />
+            )}
+
+            {errors.slotId && (
+              <p className="mt-2 text-sm text-red-600">
+                {errors.slotId.message}
+              </p>
             )}
           </div>
         )}
 
         <div>
-          <label className="mb-2 block font-medium">
+          <label className="mb-1 block text-sm font-medium">
             Motivo
           </label>
 
           <textarea
-            value={reason}
-            onChange={(event) =>
-              setReason(
-                event.target.value,
-              )
-            }
-            minLength={3}
-            required
+            {...register("reason")}
+            rows={4}
             className="w-full rounded-lg border px-3 py-2"
           />
+
+          {errors.reason && (
+            <p className="mt-1 text-sm text-red-600">
+              {errors.reason.message}
+            </p>
+          )}
         </div>
 
-        <button
-          type="submit"
-          disabled={mutation.isPending}
-          className="rounded-lg bg-teal-600 px-5 py-2 text-white disabled:opacity-50"
-        >
-          {mutation.isPending
-            ? "Guardando..."
-            : "Guardar cambios"}
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            type="submit"
+            disabled={mutation.isPending}
+            className="rounded-lg bg-teal-600 px-4 py-2 font-medium text-white disabled:opacity-60"
+          >
+            {mutation.isPending
+              ? "Guardando..."
+              : "Guardar cambios"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              router.push("/appointments")
+            }
+            className="rounded-lg border px-4 py-2 font-medium"
+          >
+            Cancelar
+          </button>
+        </div>
       </form>
     </div>
   );

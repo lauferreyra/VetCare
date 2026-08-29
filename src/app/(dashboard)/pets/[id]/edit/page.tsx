@@ -1,73 +1,79 @@
 "use client";
 
-import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
 
+import { clientFetch } from "@/lib/api/clientFetch";
+import {
+  PetFormData,
+  petSchema,
+} from "@/lib/validations/petSchema";
 import { useNotificationStore } from "@/stores/useNotificationStore";
 
 type Pet = {
   id: number;
   name: string;
   species: string;
-  breed?: string | null;
-  birthDate?: string | null;
-};
-
-type UpdatePetPayload = {
-  name: string;
-  species: string;
-  breed?: string;
-  birthDate?: string;
+  breed: string | null;
+  birthDate: string | null;
 };
 
 async function getPet(id: string): Promise<Pet> {
-  const response = await fetch(`/api/pets/${id}`, {
-    cache: "no-store",
-  });
+  const response = await clientFetch(`/api/pets/${id}`);
 
   const data = await response.json();
 
   if (!response.ok) {
     throw new Error(
-      data.message ?? "No se pudo cargar la mascota",
+      data.message ?? "No se pudo obtener la mascota",
     );
   }
 
   return data;
 }
 
-async function updatePet({
-  id,
-  payload,
-}: {
-  id: string;
-  payload: UpdatePetPayload;
-}) {
-  const response = await fetch(`/api/pets/${id}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
+async function updatePet(
+  id: string,
+  data: PetFormData,
+) {
+  const response = await clientFetch(
+    `/api/pets/${id}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: data.name,
+        species: data.species,
+        breed: data.breed || undefined,
+        birthDate: data.birthDate || undefined,
+      }),
     },
-    body: JSON.stringify(payload),
-  });
+  );
 
-  const data = await response.json();
+  const responseData = await response.json();
 
   if (!response.ok) {
+    const message = Array.isArray(
+      responseData.message,
+    )
+      ? responseData.message.join(", ")
+      : responseData.message;
+
     throw new Error(
-      Array.isArray(data.message)
-        ? data.message.join(", ")
-        : data.message ?? "No se pudo actualizar la mascota",
+      message ?? "No se pudo actualizar la mascota",
     );
   }
 
-  return data;
+  return responseData;
 }
 
 export default function EditPetPage() {
@@ -75,20 +81,33 @@ export default function EditPetPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const showNotification = useNotificationStore(
-    (state) => state.showNotification,
-  );
+  const showNotification =
+    useNotificationStore(
+      (state) => state.showNotification,
+    );
 
-  const [name, setName] = useState("");
-  const [species, setSpecies] = useState("");
-  const [breed, setBreed] = useState("");
-  const [birthDate, setBirthDate] = useState("");
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: {
+      errors,
+      isSubmitting,
+    },
+  } = useForm<PetFormData>({
+    resolver: zodResolver(petSchema),
+    defaultValues: {
+      name: "",
+      species: "",
+      breed: "",
+      birthDate: "",
+    },
+  });
 
   const {
     data: pet,
-    isPending,
+    isLoading,
     isError,
-    error,
   } = useQuery({
     queryKey: ["pet", params.id],
     queryFn: () => getPet(params.id),
@@ -99,27 +118,26 @@ export default function EditPetPage() {
       return;
     }
 
-    setName(pet.name);
-    setSpecies(pet.species);
-    setBreed(pet.breed ?? "");
-
-    if (pet.birthDate) {
-      setBirthDate(
-        new Date(pet.birthDate)
-          .toISOString()
-          .slice(0, 10),
-      );
-    }
-  }, [pet]);
+    reset({
+      name: pet.name,
+      species: pet.species,
+      breed: pet.breed ?? "",
+      birthDate: pet.birthDate
+        ? pet.birthDate.slice(0, 10)
+        : "",
+    });
+  }, [pet, reset]);
 
   const mutation = useMutation({
-    mutationFn: updatePet,
+    mutationFn: (data: PetFormData) =>
+      updatePet(params.id, data),
 
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: ["pets"],
         }),
+
         queryClient.invalidateQueries({
           queryKey: ["pet", params.id],
         }),
@@ -133,120 +151,107 @@ export default function EditPetPage() {
       router.push("/pets");
     },
 
-    onError: (error) => {
+    onError: (error: Error) => {
       showNotification(
-        error instanceof Error
-          ? error.message
-          : "No se pudo actualizar la mascota",
+        error.message,
         "error",
       );
     },
   });
 
-  function handleSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault();
-
-    mutation.mutate({
-      id: params.id,
-      payload: {
-        name,
-        species,
-        breed: breed || undefined,
-        birthDate: birthDate || undefined,
-      },
-    });
+  function onSubmit(data: PetFormData) {
+    mutation.mutate(data);
   }
 
-  if (isPending) {
+  if (isLoading) {
     return <p>Cargando mascota...</p>;
   }
 
   if (isError) {
     return (
       <p className="text-red-600">
-        {error instanceof Error
-          ? error.message
-          : "No se pudo cargar la mascota"}
+        No se pudo cargar la mascota.
       </p>
     );
   }
 
   return (
-    <section className="max-w-2xl">
-      <h1 className="text-3xl font-bold text-slate-900">
-        Editar mascota
-      </h1>
+    <div className="mx-auto max-w-2xl">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">
+          Editar mascota
+        </h1>
 
-      <p className="mt-2 text-slate-600">
-        Modificá los datos de {pet.name}.
-      </p>
+        <p className="mt-1 text-gray-600">
+          Modificá los datos de tu mascota.
+        </p>
+      </div>
 
       <form
-        onSubmit={handleSubmit}
-        className="mt-8 space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+        onSubmit={handleSubmit(onSubmit)}
+        className="space-y-5 rounded-xl border bg-white p-6 shadow-sm"
       >
         <div>
           <label
             htmlFor="name"
-            className="mb-2 block text-sm font-medium text-slate-700"
+            className="mb-1 block text-sm font-medium"
           >
             Nombre
           </label>
 
           <input
             id="name"
-            value={name}
-            onChange={(event) =>
-              setName(event.target.value)
-            }
-            required
-            className="w-full rounded-lg border border-slate-300 px-4 py-3"
+            {...register("name")}
+            className="w-full rounded-lg border px-3 py-2 outline-none focus:border-teal-500"
           />
+
+          {errors.name && (
+            <p className="mt-1 text-sm text-red-600">
+              {errors.name.message}
+            </p>
+          )}
         </div>
 
         <div>
           <label
             htmlFor="species"
-            className="mb-2 block text-sm font-medium text-slate-700"
+            className="mb-1 block text-sm font-medium"
           >
             Especie
           </label>
 
           <input
             id="species"
-            value={species}
-            onChange={(event) =>
-              setSpecies(event.target.value)
-            }
-            required
-            className="w-full rounded-lg border border-slate-300 px-4 py-3"
+            {...register("species")}
+            className="w-full rounded-lg border px-3 py-2 outline-none focus:border-teal-500"
           />
+
+          {errors.species && (
+            <p className="mt-1 text-sm text-red-600">
+              {errors.species.message}
+            </p>
+          )}
         </div>
 
         <div>
           <label
             htmlFor="breed"
-            className="mb-2 block text-sm font-medium text-slate-700"
+            className="mb-1 block text-sm font-medium"
           >
             Raza
           </label>
 
           <input
             id="breed"
-            value={breed}
-            onChange={(event) =>
-              setBreed(event.target.value)
-            }
-            className="w-full rounded-lg border border-slate-300 px-4 py-3"
+            {...register("breed")}
+            className="w-full rounded-lg border px-3 py-2 outline-none focus:border-teal-500"
           />
         </div>
 
         <div>
           <label
             htmlFor="birthDate"
-            className="mb-2 block text-sm font-medium text-slate-700"
+            className="mb-1 block text-sm font-medium"
           >
             Fecha de nacimiento
           </label>
@@ -254,33 +259,34 @@ export default function EditPetPage() {
           <input
             id="birthDate"
             type="date"
-            value={birthDate}
-            onChange={(event) =>
-              setBirthDate(event.target.value)
-            }
-            className="w-full rounded-lg border border-slate-300 px-4 py-3"
+            {...register("birthDate")}
+            className="w-full rounded-lg border px-3 py-2 outline-none focus:border-teal-500"
           />
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <button
             type="submit"
-            disabled={mutation.isPending}
-            className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+            disabled={
+              isSubmitting ||
+              mutation.isPending
+            }
+            className="rounded-lg bg-teal-600 px-4 py-2 font-medium text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {mutation.isPending
               ? "Guardando..."
               : "Guardar cambios"}
           </button>
 
-          <Link
-            href="/pets"
-            className="rounded-lg border border-slate-300 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50"
+          <button
+            type="button"
+            onClick={() => router.push("/pets")}
+            className="rounded-lg border px-4 py-2 font-medium hover:bg-gray-50"
           >
             Cancelar
-          </Link>
+          </button>
         </div>
       </form>
-    </section>
+    </div>
   );
 }
