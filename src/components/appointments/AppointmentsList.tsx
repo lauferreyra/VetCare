@@ -1,8 +1,14 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import Link from "next/link";
 
+import { useAuthUser } from "@/contexts/AuthUserContext";
+import { clientFetch } from "@/lib/api/clientFetch";
 import { useNotificationStore } from "@/stores/useNotificationStore";
 
 type AppointmentStatus =
@@ -26,17 +32,21 @@ type Appointment = {
 };
 
 async function getAppointments(): Promise<Appointment[]> {
-  const response = await fetch("/api/appointments");
+  const response = await clientFetch(
+    "/api/appointments",
+  );
 
   if (!response.ok) {
-    throw new Error("Error al obtener los turnos");
+    throw new Error(
+      "Error al obtener los turnos",
+    );
   }
 
   return response.json();
 }
 
 async function cancelAppointment(id: number) {
-  const response = await fetch(
+  const response = await clientFetch(
     `/api/appointments/${id}/cancel`,
     {
       method: "PATCH",
@@ -47,15 +57,61 @@ async function cancelAppointment(id: number) {
 
   if (!response.ok) {
     throw new Error(
-      data.message ?? "Error al cancelar el turno",
+      data.message ??
+        "Error al cancelar el turno",
     );
   }
 
   return data;
 }
 
-function getStatusLabel(status: AppointmentStatus) {
-  const labels: Record<AppointmentStatus, string> = {
+async function confirmAppointment(id: number) {
+  const response = await clientFetch(
+    `/api/appointments/${id}/confirm`,
+    {
+      method: "PATCH",
+    },
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message ??
+        "Error al confirmar el turno",
+    );
+  }
+
+  return data;
+}
+
+async function completeAppointment(id: number) {
+  const response = await clientFetch(
+    `/api/appointments/${id}/complete`,
+    {
+      method: "PATCH",
+    },
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.message ??
+        "Error al completar el turno",
+    );
+  }
+
+  return data;
+}
+
+function getStatusLabel(
+  status: AppointmentStatus,
+) {
+  const labels: Record<
+    AppointmentStatus,
+    string
+  > = {
     PENDING: "Pendiente",
     CONFIRMED: "Confirmado",
     CANCELLED: "Cancelado",
@@ -65,8 +121,13 @@ function getStatusLabel(status: AppointmentStatus) {
   return labels[status];
 }
 
-function getStatusClasses(status: AppointmentStatus) {
-  const classes: Record<AppointmentStatus, string> = {
+function getStatusClasses(
+  status: AppointmentStatus,
+) {
+  const classes: Record<
+    AppointmentStatus,
+    string
+  > = {
     PENDING:
       "bg-yellow-100 text-yellow-800",
     CONFIRMED:
@@ -83,9 +144,12 @@ function getStatusClasses(status: AppointmentStatus) {
 export default function AppointmentsList() {
   const queryClient = useQueryClient();
 
-  const showNotification = useNotificationStore(
-    (state) => state.showNotification,
-  );
+  const { user } = useAuthUser();
+
+  const showNotification =
+    useNotificationStore(
+      (state) => state.showNotification,
+    );
 
   const {
     data: appointments = [],
@@ -96,10 +160,8 @@ export default function AppointmentsList() {
     queryFn: getAppointments,
   });
 
-  const cancelMutation = useMutation({
-    mutationFn: cancelAppointment,
-
-    onSuccess: async () => {
+  const invalidateAppointmentQueries =
+    async () => {
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: ["appointments"],
@@ -111,9 +173,56 @@ export default function AppointmentsList() {
           queryKey: ["availability"],
         }),
       ]);
+    };
+
+  const cancelMutation = useMutation({
+    mutationFn: cancelAppointment,
+
+    onSuccess: async () => {
+      await invalidateAppointmentQueries();
 
       showNotification(
         "Turno cancelado correctamente",
+        "success",
+      );
+    },
+
+    onError: (error: Error) => {
+      showNotification(
+        error.message,
+        "error",
+      );
+    },
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: confirmAppointment,
+
+    onSuccess: async () => {
+      await invalidateAppointmentQueries();
+
+      showNotification(
+        "Turno confirmado correctamente",
+        "success",
+      );
+    },
+
+    onError: (error: Error) => {
+      showNotification(
+        error.message,
+        "error",
+      );
+    },
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: completeAppointment,
+
+    onSuccess: async () => {
+      await invalidateAppointmentQueries();
+
+      showNotification(
+        "Turno completado correctamente",
         "success",
       );
     },
@@ -136,6 +245,30 @@ export default function AppointmentsList() {
     }
 
     cancelMutation.mutate(id);
+  }
+
+  function handleConfirm(id: number) {
+    const confirmed = window.confirm(
+      "¿Querés confirmar este turno?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    confirmMutation.mutate(id);
+  }
+
+  function handleComplete(id: number) {
+    const confirmed = window.confirm(
+      "¿Querés marcar este turno como completado?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    completeMutation.mutate(id);
   }
 
   if (isLoading) {
@@ -172,11 +305,24 @@ export default function AppointmentsList() {
       {appointments.map((appointment) => {
         const canModify =
           appointment.status === "PENDING" ||
-          appointment.status === "CONFIRMED";
+          appointment.status ===
+            "CONFIRMED";
 
-        const appointmentDate = appointment.slot
-          ? new Date(appointment.slot.startTime)
-          : null;
+        const canConfirm =
+          user.role === "ADMIN" &&
+          appointment.status === "PENDING";
+
+        const canComplete =
+          user.role === "ADMIN" &&
+          appointment.status ===
+            "CONFIRMED";
+
+        const appointmentDate =
+          appointment.slot
+            ? new Date(
+                appointment.slot.startTime,
+              )
+            : null;
 
         return (
           <article
@@ -220,31 +366,67 @@ export default function AppointmentsList() {
                 )}
               </div>
 
-              {canModify && (
-                <div className="flex gap-3">
-                  <Link
-                    href={`/appointments/${appointment.id}/edit`}
-                    className="rounded-lg border px-3 py-2 text-sm font-medium hover:bg-gray-50"
-                  >
-                    Editar
-                  </Link>
+              <div className="flex flex-wrap gap-3">
+                {canModify && (
+                  <>
+                    <Link
+                      href={`/appointments/${appointment.id}/edit`}
+                      className="rounded-lg border px-3 py-2 text-sm font-medium hover:bg-gray-50"
+                    >
+                      Editar
+                    </Link>
 
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleCancel(
+                          appointment.id,
+                        )
+                      }
+                      disabled={
+                        cancelMutation.isPending
+                      }
+                      className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                  </>
+                )}
+
+                {canConfirm && (
                   <button
                     type="button"
                     onClick={() =>
-                      handleCancel(
+                      handleConfirm(
                         appointment.id,
                       )
                     }
                     disabled={
-                      cancelMutation.isPending
+                      confirmMutation.isPending
                     }
-                    className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
                   >
-                    Cancelar
+                    Confirmar
                   </button>
-                </div>
-              )}
+                )}
+
+                {canComplete && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleComplete(
+                        appointment.id,
+                      )
+                    }
+                    disabled={
+                      completeMutation.isPending
+                    }
+                    className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    Completar
+                  </button>
+                )}
+              </div>
             </div>
           </article>
         );
