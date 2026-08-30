@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+
 import { MobileDashboardMenu } from "@/components/dashboard/MobileDashboardMenu";
 import { AuthUserProvider } from "@/contexts/AuthUserContext";
 
@@ -40,99 +41,129 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  const isAdmin = user.role === "ADMIN";
+
   return (
     <AuthUserProvider user={user}>
-    <div className="min-h-screen bg-gray-50">
-      {/* HEADER MOBILE */}
-      <header className="relative border-b bg-white lg:hidden">
-        <div className="flex h-16 items-center justify-between px-4">
-          <Link
-            href="/dashboard"
-            className="text-xl font-bold text-teal-600"
-          >
-            VetCare
-          </Link>
-
-          <MobileDashboardMenu email={user.email} role={user.role} />
-        </div>
-      </header>
-
-      <div className="flex w-full">
-        {/* SIDEBAR DESKTOP */}
-        <aside className="hidden min-h-screen w-64 shrink-0 border-r bg-white lg:block">
-          <div className="sticky top-0 p-6">
+      <div className="min-h-screen bg-gray-50">
+        {/* HEADER MOBILE */}
+        <header className="relative border-b bg-white lg:hidden">
+          <div className="flex h-16 items-center justify-between px-4">
             <Link
               href="/dashboard"
-              className="text-2xl font-bold text-teal-600"
+              className="text-xl font-bold text-teal-600"
             >
               VetCare
             </Link>
 
-            <nav className="mt-8 space-y-2">
+            <MobileDashboardMenu
+              email={user.email}
+              role={user.role}
+            />
+          </div>
+        </header>
+
+        <div className="flex w-full">
+          {/* SIDEBAR DESKTOP */}
+          <aside className="hidden min-h-screen w-64 shrink-0 border-r bg-white lg:block">
+            <div className="sticky top-0 p-6">
               <Link
                 href="/dashboard"
-                className="block rounded-lg px-4 py-3 hover:bg-gray-100"
+                className="text-2xl font-bold text-teal-600"
               >
-                Dashboard
+                VetCare
               </Link>
 
-              <Link
-                href="/pets"
-                className="block rounded-lg px-4 py-3 hover:bg-gray-100"
-              >
-                Mascotas
-              </Link>
-
-              <Link
-                href="/appointments"
-                className="block rounded-lg px-4 py-3 hover:bg-gray-100"
-              >
-                Turnos
-              </Link>
-
- {            user.role === "ADMIN" && (
-                <Link href="/users"
-                className="block rounded-lg px-4 py-3 hover:bg-gray-100"
+              <nav className="mt-8 space-y-2">
+                <Link
+                  href="/dashboard"
+                  className="block rounded-lg px-4 py-3 hover:bg-gray-100"
                 >
-                  Usuarios
+                  Dashboard
                 </Link>
-              )}
-              <Link
-                href="/appointments/new"
-                className="block rounded-lg bg-teal-600 px-4 py-3 text-center font-medium text-white hover:bg-teal-700"
-              >
-                + Reservar turno
-              </Link>
-             
-            </nav>
 
-            <div className="mt-10 border-t pt-5">
-              <p className="truncate text-sm font-medium">
-                {user.email}
-              </p>
+                {isAdmin ? (
+                  <>
+                    <Link
+                      href="/admin/users"
+                      className="block rounded-lg px-4 py-3 hover:bg-gray-100"
+                    >
+                      Clientes
+                    </Link>
 
-              <form
-                action="/api/auth/logout"
-                method="post"
-                className="mt-3"
-              >
-                <button
-                  type="submit"
-                  className="text-sm font-medium text-red-600 hover:text-red-700"
+                    <Link
+                      href="/admin/pets"
+                      className="block rounded-lg px-4 py-3 hover:bg-gray-100"
+                    >
+                      Mascotas
+                    </Link>
+
+                    <Link
+                      href="/admin/appointments"
+                      className="block rounded-lg px-4 py-3 hover:bg-gray-100"
+                    >
+                      Turnos
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href="/pets"
+                      className="block rounded-lg px-4 py-3 hover:bg-gray-100"
+                    >
+                      Mis mascotas
+                    </Link>
+
+                    <Link
+                      href="/appointments"
+                      className="block rounded-lg px-4 py-3 hover:bg-gray-100"
+                    >
+                      Mis turnos
+                    </Link>
+
+                    <Link
+                      href="/appointments/new"
+                      className="block rounded-lg bg-teal-600 px-4 py-3 text-center font-medium text-white hover:bg-teal-700"
+                    >
+                      + Reservar turno
+                    </Link>
+                  </>
+                )}
+              </nav>
+
+              <div className="mt-10 border-t pt-5">
+                <p className="truncate text-sm font-medium">
+                  {user.email}
+                </p>
+
+                <p className="mt-1 text-xs text-gray-500">
+                  {isAdmin
+                    ? "Administrador"
+                    : "Cliente"}
+                </p>
+
+                <form
+                  action="/api/auth/logout"
+                  method="post"
+                  className="mt-3"
                 >
-                  Cerrar sesión
-                </button>
-              </form>
+                  <button
+                    type="submit"
+                    className="text-sm font-medium text-red-600 hover:text-red-700"
+                  >
+                    Cerrar sesión
+                  </button>
+                </form>
+              </div>
             </div>
-          </div>
-        </aside>
+          </aside>
 
-        {/* CONTENIDO */}
-        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
-          {children}
-        </main>
+          {/* CONTENIDO */}
+          <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
     </AuthUserProvider>
   );
 }
