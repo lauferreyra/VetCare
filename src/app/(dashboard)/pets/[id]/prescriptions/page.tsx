@@ -129,6 +129,40 @@ export default function PrescriptionsPage() {
     queryFn: () => getPrescriptions(params.id),
   });
 
+  const downloadPdf = async (prescriptionId: number) => {
+  try {
+    const response = await clientFetch(
+      `/api/prescriptions/${prescriptionId}/pdf`,
+    );
+
+    if (!response.ok) {
+      throw new Error("No se pudo descargar la receta");
+    }
+
+    const blob = await response.blob();
+
+    const url = window.URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `receta-${prescriptionId}.pdf`;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+
+    window.URL.revokeObjectURL(url);
+  } catch {
+    showNotification(
+      "No se pudo descargar la receta",
+      "error",
+    );
+  }
+};
+
   if (isLoadingPet || isLoadingPrescriptions) {
     return <p>Cargando recetas...</p>;
   }
@@ -254,6 +288,14 @@ export default function PrescriptionsPage() {
                     </p>
                   </div>
                 )}
+
+            <button
+                type="button"
+                onClick={() => downloadPdf(prescription.id)}
+                className="rounded-lg border px-3 py-2 text-sm font-medium hover:bg-gray-50"
+                >
+                Descargar PDF
+            </button>
 
             {user.role === "ADMIN" && (
                 <div className="flex gap-4 pt-2">
