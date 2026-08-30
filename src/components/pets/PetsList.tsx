@@ -166,6 +166,13 @@ const deleteMutation = useMutation({
               >
                 Historia clínica
               </Link>
+
+              <Link
+                href={`/pets/${pet.id}/prescriptions`}
+                className="font-medium text-teal-600 hover:text-teal-700"
+              >
+                Recetas
+              </Link>
             <button
                 type="button"
                 disabled={deleteMutation.isPending}
