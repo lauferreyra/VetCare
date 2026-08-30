@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 
 import { clientFetch } from "@/lib/api/clientFetch";
 
@@ -36,6 +37,8 @@ async function getPets(): Promise<Pet[]> {
 }
 
 export default function AdminPetsPage() {
+  const [search, setSearch] = useState("");
+
   const {
     data: pets = [],
     isLoading,
@@ -57,6 +60,34 @@ export default function AdminPetsPage() {
     );
   }
 
+  const normalizedSearch = search
+    .trim()
+    .toLowerCase();
+
+  const filteredPets = pets.filter((pet) => {
+    if (!normalizedSearch) {
+      return true;
+    }
+
+    return (
+      pet.name
+        .toLowerCase()
+        .includes(normalizedSearch) ||
+      pet.species
+        .toLowerCase()
+        .includes(normalizedSearch) ||
+      pet.breed
+        ?.toLowerCase()
+        .includes(normalizedSearch) ||
+      pet.owner.name
+        .toLowerCase()
+        .includes(normalizedSearch) ||
+      pet.owner.email
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  });
+
   return (
     <div>
       <div className="mb-6">
@@ -65,8 +96,21 @@ export default function AdminPetsPage() {
         </h1>
 
         <p className="mt-1 text-gray-600">
-          Todas las mascotas registradas en VetCare.
+          Todas las mascotas registradas en
+          VetCare.
         </p>
+      </div>
+
+      <div className="mb-5">
+        <input
+          type="text"
+          placeholder="Buscar por mascota, especie, raza o cliente..."
+          value={search}
+          onChange={(event) =>
+            setSearch(event.target.value)
+          }
+          className="w-full rounded-lg border bg-white px-4 py-3 outline-none transition focus:border-teal-500 sm:max-w-lg"
+        />
       </div>
 
       <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
@@ -74,30 +118,30 @@ export default function AdminPetsPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b bg-gray-50">
               <tr>
-                <th className="px-4 py-3">
+                <th className="px-4 py-3 font-medium">
                   Mascota
                 </th>
 
-                <th className="px-4 py-3">
+                <th className="px-4 py-3 font-medium">
                   Especie
                 </th>
 
-                <th className="px-4 py-3">
+                <th className="px-4 py-3 font-medium">
                   Raza
                 </th>
 
-                <th className="px-4 py-3">
+                <th className="px-4 py-3 font-medium">
                   Cliente
                 </th>
 
-                <th className="px-4 py-3">
+                <th className="px-4 py-3 font-medium">
                   Acciones
                 </th>
               </tr>
             </thead>
 
             <tbody>
-              {pets.map((pet) => (
+              {filteredPets.map((pet) => (
                 <tr
                   key={pet.id}
                   className="border-b last:border-b-0"
@@ -155,6 +199,14 @@ export default function AdminPetsPage() {
             No hay mascotas registradas.
           </div>
         )}
+
+        {pets.length > 0 &&
+          filteredPets.length === 0 && (
+            <div className="p-6 text-center text-gray-500">
+              No se encontraron mascotas para
+              &quot;{search}&quot;.
+            </div>
+          )}
       </div>
     </div>
   );

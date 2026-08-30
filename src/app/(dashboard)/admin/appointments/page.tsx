@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 
 import { clientFetch } from "@/lib/api/clientFetch";
 import { useNotificationStore } from "@/stores/useNotificationStore";
@@ -98,6 +99,8 @@ async function completeAppointment(id: number) {
 }
 
 export default function AdminAppointmentsPage() {
+  const [search, setSearch] = useState("");
+
   const queryClient = useQueryClient();
 
   const showNotification =
@@ -169,7 +172,9 @@ export default function AdminAppointmentsPage() {
       "¿Querés confirmar este turno?",
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     confirmMutation.mutate(id);
   }
@@ -179,7 +184,9 @@ export default function AdminAppointmentsPage() {
       "¿Querés marcar este turno como completado?",
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     completeMutation.mutate(id);
   }
@@ -196,6 +203,48 @@ export default function AdminAppointmentsPage() {
     );
   }
 
+  const normalizedSearch = search
+    .trim()
+    .toLowerCase();
+
+  const filteredAppointments =
+    appointments.filter((appointment) => {
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      const statusLabels: Record<
+        AppointmentStatus,
+        string
+      > = {
+        PENDING: "pendiente",
+        CONFIRMED: "confirmado",
+        CANCELLED: "cancelado",
+        COMPLETED: "completado",
+      };
+
+      return (
+        appointment.pet.name
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        appointment.pet.owner.name
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        appointment.pet.owner.email
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        appointment.reason
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        appointment.status
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        statusLabels[
+          appointment.status
+        ].includes(normalizedSearch)
+      );
+    });
+
   return (
     <div>
       <div className="mb-6">
@@ -209,39 +258,51 @@ export default function AdminAppointmentsPage() {
         </p>
       </div>
 
+      <div className="mb-5">
+        <input
+          type="text"
+          placeholder="Buscar por cliente, mascota, motivo o estado..."
+          value={search}
+          onChange={(event) =>
+            setSearch(event.target.value)
+          }
+          className="w-full rounded-lg border bg-white px-4 py-3 outline-none transition focus:border-teal-500 sm:max-w-lg"
+        />
+      </div>
+
       <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b bg-gray-50">
               <tr>
-                <th className="px-4 py-3">
+                <th className="px-4 py-3 font-medium">
                   Fecha
                 </th>
 
-                <th className="px-4 py-3">
+                <th className="px-4 py-3 font-medium">
                   Cliente
                 </th>
 
-                <th className="px-4 py-3">
+                <th className="px-4 py-3 font-medium">
                   Mascota
                 </th>
 
-                <th className="px-4 py-3">
+                <th className="px-4 py-3 font-medium">
                   Motivo
                 </th>
 
-                <th className="px-4 py-3">
+                <th className="px-4 py-3 font-medium">
                   Estado
                 </th>
 
-                <th className="px-4 py-3">
+                <th className="px-4 py-3 font-medium">
                   Acciones
                 </th>
               </tr>
             </thead>
 
             <tbody>
-              {appointments.map(
+              {filteredAppointments.map(
                 (appointment) => {
                   const date =
                     appointment.slot
@@ -370,6 +431,14 @@ export default function AdminAppointmentsPage() {
             No hay turnos registrados.
           </div>
         )}
+
+        {appointments.length > 0 &&
+          filteredAppointments.length === 0 && (
+            <div className="p-6 text-center text-gray-500">
+              No se encontraron turnos para
+              &quot;{search}&quot;.
+            </div>
+          )}
       </div>
     </div>
   );

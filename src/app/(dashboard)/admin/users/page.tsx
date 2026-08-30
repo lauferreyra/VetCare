@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 
 import { clientFetch } from "@/lib/api/clientFetch";
 
@@ -28,6 +29,8 @@ async function getUsers(): Promise<User[]> {
 }
 
 export default function AdminUsersPage() {
+  const [search, setSearch] = useState("");
+
   const {
     data: users = [],
     isLoading,
@@ -49,6 +52,31 @@ export default function AdminUsersPage() {
     );
   }
 
+  const clients = users.filter(
+    (user) => user.role === "USER",
+  );
+
+  const normalizedSearch = search
+    .trim()
+    .toLowerCase();
+
+  const filteredClients = clients.filter(
+    (user) => {
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return (
+        user.name
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        user.email
+          .toLowerCase()
+          .includes(normalizedSearch)
+      );
+    },
+  );
+
   return (
     <div>
       <div className="mb-6">
@@ -57,8 +85,21 @@ export default function AdminUsersPage() {
         </h1>
 
         <p className="mt-1 text-gray-600">
-          Consultá los clientes registrados y accedé a sus mascotas y turnos.
+          Consultá los clientes registrados y
+          accedé a sus mascotas y turnos.
         </p>
+      </div>
+
+      <div className="mb-5">
+        <input
+          type="text"
+          placeholder="Buscar por nombre o email..."
+          value={search}
+          onChange={(event) =>
+            setSearch(event.target.value)
+          }
+          className="w-full rounded-lg border bg-white px-4 py-3 outline-none transition focus:border-teal-500 sm:max-w-md"
+        />
       </div>
 
       <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
@@ -85,7 +126,7 @@ export default function AdminUsersPage() {
             </thead>
 
             <tbody>
-              {users.map((user) => (
+              {filteredClients.map((user) => (
                 <tr
                   key={user.id}
                   className="border-b last:border-b-0"
@@ -127,11 +168,19 @@ export default function AdminUsersPage() {
           </table>
         </div>
 
-        {users.length === 0 && (
+        {clients.length === 0 && (
           <div className="p-6 text-center text-gray-500">
             No hay clientes registrados.
           </div>
         )}
+
+        {clients.length > 0 &&
+          filteredClients.length === 0 && (
+            <div className="p-6 text-center text-gray-500">
+              No se encontraron clientes para
+              &quot;{search}&quot;.
+            </div>
+          )}
       </div>
     </div>
   );
