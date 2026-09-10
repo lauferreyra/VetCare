@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { MobileDashboardMenu } from "@/components/dashboard/MobileDashboardMenu";
 import { AuthUserProvider } from "@/contexts/AuthUserContext";
+import { ChatWidget } from "@/components/chat/ChatWidget";
 
 async function getCurrentUser() {
   const cookieStore = await cookies();
@@ -163,6 +164,9 @@ export default async function DashboardLayout({
             {children}
           </main>
         </div>
+
+        {/* ASISTENTE IA */}
+        <ChatWidget />
       </div>
     </AuthUserProvider>
   );
