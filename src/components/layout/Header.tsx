@@ -25,12 +25,22 @@ export default function Header() {
             ))}
           </nav>
 
-          <Link
-            href="#contact"
-            className="hidden rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-800 md:inline-flex"
-          >
-            Reservar turno
-          </Link>
+         <div className="hidden items-center gap-3 md:flex">
+            <Link
+              href="/login"
+              className="rounded-lg border border-teal-700 px-4 py-2 text-sm font-semibold text-teal-700 transition-colors hover:bg-teal-50"
+            >
+              Iniciar sesión
+            </Link>
+
+            <Link
+              href="#contact"
+              className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-800"
+            >
+              Reservar turno
+            </Link>
+          </div>
+
 
           <MobileMenu />
         </div>
